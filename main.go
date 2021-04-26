@@ -1,7 +1,30 @@
 package main
 
-import "fmt"
+import (
+	"encoding/json"
+	"fmt"
+	"log"
+)
 
-func main()  {
-	fmt.Printf("In the %s", "beginning")
+type person struct {
+	First string
+}
+
+func main() {
+	p1 := person{
+		First: "Matthew",
+	}
+
+	p2 := person{
+		First: "Mark",
+	}
+
+	persons := []person{p1, p2}
+
+	bs, err := json.Marshal(persons)
+	if err != nil {
+		log.Panic(err)  //panic on a programmer error
+	}
+	fmt.Println(string(bs))
+
 }
