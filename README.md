@@ -1,3 +1,3 @@
 # go-arch
 
-Start me up
+Start me up and away we go
