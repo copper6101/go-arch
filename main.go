@@ -1,56 +1,49 @@
 package main
 
 import (
-	"encoding/json"
+	"encoding/base64"
 	"fmt"
 	"log"
-	"net/http"
+
+	"golang.org/x/crypto/bcrypt"
 )
 
 type person struct {
 	First string `json:"firstName"`
 }
-/**
-curl -XGET http://localhost:9000/encode
 
-curl -XPOST http://localhost:9000/decode --data '{"firstName":"Bob"}' -H "Content-Type:application/json"
-curl -XPOST http://localhost:9000/decode --data '{"firstName":"Bob"}' -H "Content-Type:application/json" --user markm:password123
-
-*/
 func main() {
+	var secret string
+	secret = base64.StdEncoding.EncodeToString([]byte("userName:password123"))
+	fmt.Println(secret)
 
-	http.HandleFunc("/encode", encodeHandler)
-	http.HandleFunc("/decode", decodeHandler)
-	http.ListenAndServe(":9000", nil)
+	passwordTest := "secret007"
+
+	passwordHash, err := hashPassword(passwordTest)
+	if err != nil {
+		panic(err)
+	}
+	fmt.Printf("password hash of %s is %s\n", passwordTest, passwordHash)
+
+	err = comparePassword(passwordTest, passwordHash)
+	if err != nil {
+		log.Fatalln("password does not match")
+	}
+	fmt.Println("Great, passwords match")
 }
 
-func encodeHandler(w http.ResponseWriter, r *http.Request) {
-
-	p1 := person{
-		First: "Matthew",
-	}
-
-	err := json.NewEncoder(w).Encode(p1)
+func hashPassword(password string) ([]byte, error) {
+	result, err := bcrypt.GenerateFromPassword([]byte(password), bcrypt.DefaultCost)
 	if err != nil {
-		log.Println("Encoding was bad", err)
+		return nil, fmt.Errorf("error generating hash from password: %w", err)
 	}
-
+	return result, nil
 }
 
-func decodeHandler(w http.ResponseWriter, r *http.Request) {
-
-	p1 := person{}
-	err := json.NewDecoder(r.Body).Decode(&p1)
+func comparePassword(password string, hashPassword []byte) error {
+	err := bcrypt.CompareHashAndPassword(hashPassword, []byte(password))
 	if err != nil {
-		return
+		return fmt.Errorf("error comparing password: %w", err)
 	}
-	fmt.Println("Decode object", p1)
-
-	auth, password, ok := r.BasicAuth()
-
-	if ok {
-		fmt.Printf("Basic Auth data is user %s & password %s", auth, password)
-	} else {
-		fmt.Println("No Basic Auth found in the request")
-	}
+	return nil
 }
