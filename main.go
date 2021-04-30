@@ -5,7 +5,10 @@ import (
 	"crypto/sha512"
 	"encoding/base64"
 	"fmt"
+	"github.com/dgrijalva/jwt-go"
+	"github.com/stretchr/testify/assert"
 	"log"
+	"time"
 
 	"golang.org/x/crypto/bcrypt"
 )
@@ -14,8 +17,22 @@ type person struct {
 	First string `json:"firstName"`
 }
 
-var key = []byte{}
+type UserClaims struct {
+	jwt.StandardClaims
+	SessionID int64
+}
 
+var key []byte
+
+func Valid(u *UserClaims) error {
+	if !u.VerifyExpiresAt(time.Now().Unix(), true) {
+		return fmt.Errorf("time has expired")
+	}
+	if u.SessionID == 0 {
+		return fmt.Errorf("session is invalid")
+	}
+	return nil
+}
 
 func main() {
 	for i := 1; i <= 64; i++ {
@@ -32,7 +49,7 @@ func main() {
 	if err != nil {
 		panic(err)
 	}
-	fmt.Printf("password hash of %v is %v\n", passwordTest, passwordHash)
+	fmt.Printf("password hash of %s is %s\n", passwordTest, passwordHash)
 
 	err = comparePassword(passwordTest, passwordHash)
 	if err != nil {
@@ -40,14 +57,8 @@ func main() {
 	}
 	fmt.Println("Great, passwords match")
 
-	signedMessaged, _ := signMessage([]byte(passwordTest))
-
-	fmt.Println(signedMessaged)
-
-	same, _ := checkSignMessageIsSame(passwordTest, signedMessaged)
-
-	fmt.Printf("Same signature %v\n", same)
-
+	signMessage([]byte(passwordTest))
+	fmt.Println("Great, signed password ")
 }
 
 func hashPassword(password string) ([]byte, error) {
@@ -79,9 +90,29 @@ func signMessage(message []byte) ([]byte, error) {
 	return signature, nil
 }
 
-func checkSignMessageIsSame(message string, signature []byte) (bool, error) {
+func createToken(c *UserClaims) (string, error) {
+	token := jwt.NewWithClaims(jwt.SigningMethodHS512, c)
+	signedToken, _ := token.SignedString(key)
+	return signedToken, nil
+}
 
-	newSig, _ := signMessage([]byte(message))
-	same := hmac.Equal(newSig, signature)
-	return same, nil
+func parseToken(signedToken string) (*UserClaims, error) {
+	claims := &UserClaims{}
+	token, err := jwt.ParseWithClaims(signedToken, claims,
+		func (token *jwt.Token) (interface{}, error) {
+			if token.Method.Alg() == jwt.SigningMethodHS512.Alg() {
+				return nil, fmt.Errorf("badness in signing alg")
+			}
+			return key, nil
+		})
+	if err != nil {
+		return nil, fmt.Errorf("error in parseToken :%w", err)
+	}
+
+	if !token.Valid {
+		return nil, fmt.Errorf("error in parse token %w", err)
+	}
+
+	return token.Claims.(*UserClaims), nil
+
 }
